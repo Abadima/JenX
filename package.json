@@ -1,0 +1,41 @@
+{
+  "name": "jenx",
+  "version": "1.0.0",
+  "description": "Anime x Jena partnership bot",
+  "keywords": [
+    "bot",
+    "discord",
+    "typescript"
+  ],
+  "license": "ISC",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "http://localhost:26831/Abadima/JenX"
+  },
+  "type": "module",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "oxlint .",
+    "format": "oxfmt --check .",
+    "format:write": "oxfmt ."
+  },
+  "dependencies": {
+    "discord.js": "^14.27.0",
+    "dotenv": "^18.0.0",
+    "logena": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "oxfmt": "^0.68.0",
+    "oxlint": "^1.83.0",
+    "tsx": "^4.23.13",
+    "typescript": "^7.0.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
