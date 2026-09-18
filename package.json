@@ -1,0 +1,30 @@
+{
+  "name": "jenx",
+  "version": "1.0.0",
+  "description": "Anime X Jena Partnership",
+  "homepage": "https://github.com/Abadima/JenX#readme",
+  "bugs": {
+    "url": "https://github.com/Abadima/JenX/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Abadima/JenX.git"
+  },
+  "author": "Abadima",
+  "type": "module",
+  "main": "build/bot.js",
+  "scripts": {
+    "test": "tsc --project tsconfig.json && node --test tests/**/*.test.mjs tests/**/*.test.cjs"
+  },
+  "dependencies": {
+    "@discordjs/core": "^2.6.0",
+    "dotenv": "^18.0.0",
+    "logena": "^1.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "oxfmt": "^0.68.0",
+    "oxlint": "^1.83.0",
+    "typescript": "^7.0.2"
+  }
+}
