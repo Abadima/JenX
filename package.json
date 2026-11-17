@@ -1,7 +1,7 @@
 {
   "name": "jenx",
   "version": "1.0.0",
-  "description": "Anime X Jena Partnership",
+  "description": "Community add-on for the Jena ecosystem",
   "homepage": "https://github.com/Abadima/JenX#readme",
   "bugs": {
     "url": "https://github.com/Abadima/JenX/issues"
@@ -11,20 +11,33 @@
     "url": "git+https://github.com/Abadima/JenX.git"
   },
   "author": "Abadima",
+  "license": "Apache-2.0",
   "type": "module",
   "main": "build/bot.js",
   "scripts": {
-    "test": "tsc --project tsconfig.json && node --test tests/**/*.test.mjs tests/**/*.test.cjs"
+    "build": "node build.js",
+    "build:node": "node build.js",
+    "build:bun": "bun build.js",
+    "build:watch": "node build.js --watch",
+    "build:watch:bun": "bun build.js --watch",
+    "start": "node .",
+    "start:node": "node .",
+    "start:bun": "bun .",
+    "typecheck": "tsc --project tsconfig.test.json",
+    "test": "bun run typecheck && bun test tests && node --test .test-build/tests",
+    "test:bun": "bun run typecheck && bun test tests",
+    "test:node": "bun run typecheck && node --test .test-build/tests"
   },
   "dependencies": {
-    "@discordjs/core": "^2.6.0",
-    "dotenv": "^18.0.0",
+    "discord.js": "^14.28.1",
+    "dotenv": "^18.0.10",
     "logena": "^1.1.0"
   },
   "devDependencies": {
-    "@types/node": "^26.6.1",
-    "oxfmt": "^0.68.0",
-    "oxlint": "^1.83.0",
+    "@types/bun": "^1.4.4",
+    "@types/node": "^26.6.6",
+    "oxfmt": "^0.79.0",
+    "oxlint": "^1.94.0",
     "typescript": "^7.0.2"
   }
 }

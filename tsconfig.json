@@ -1,0 +1,50 @@
+{
+	"compilerOptions": {
+		/* Language & runtime */
+		"target": "ES2024",
+		"lib": ["ES2024"],
+		"module": "NodeNext",
+		"moduleResolution": "NodeNext",
+		/* Project structure */
+		"rootDir": "./src",
+		"outDir": "./build",
+		/* Type checking */
+		"strict": true,
+		"noImplicitAny": true,
+		"noImplicitThis": true,
+		"strictNullChecks": true,
+		"strictFunctionTypes": true,
+		"strictBindCallApply": true,
+		"strictPropertyInitialization": true,
+		"strictBuiltinIteratorReturn": true,
+		/* Additional correctness checks */
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noFallthroughCasesInSwitch": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noUncheckedIndexedAccess": true,
+		"noUncheckedSideEffectImports": true,
+		/* Modules */
+		"verbatimModuleSyntax": true,
+		"isolatedModules": true,
+		"moduleDetection": "force",
+		"forceConsistentCasingInFileNames": true,
+		/* Node / package compatibility */
+		"esModuleInterop": true,
+		"allowSyntheticDefaultImports": true,
+		"resolveJsonModule": true,
+		"types": ["bun", "node"],
+		/* Emit */
+		"declaration": true,
+		"removeComments": true,
+		"sourceMap": true,
+		"noEmitOnError": true,
+		/* Dependencies */
+		"skipLibCheck": true
+	},
+
+	"include": ["src/**/*"],
+	"exclude": ["node_modules", "build"]
+}
