@@ -6,54 +6,80 @@ Deterministic, keyword/regex only. No AI, ML, external calls or extra dependenci
 
 | Concern | Location |
 | --- | --- |
-| Trigger keywords, names, patterns, exclusions | `src/features/message-assistant/config.ts` |
-| Evidence weights and threshold | `config.ts` -> `ANIMEX_LINKS_CONFIG.weights`, `.threshold` |
-| Section keywords, labels and destination URLs | `config.ts` -> `.sections` (single source: section words also feed topic matching and patterns) |
-| Channel cooldown length | `config.ts` -> `.cooldownMs` (enforced by `cooldown.ts`) |
-| Embed title/description/colour/thumbnail | `config.ts` -> `.response` |
-| Scoring engine | `src/features/message-assistant/matcher.ts` |
+| Vocabulary, frames, doubts, vetoes, weights, threshold, length, typo settings, sections, embed copy, cooldown length | `src/features/message-assistant/config.ts` |
+| Message preparation, typo repair and scoring | `src/features/message-assistant/matcher.ts` |
+| What counts as a finger slip (keyboard layout) | `src/features/message-assistant/typo.ts` |
+| Regenerating the typo guard list | `scripts/typo-guard.ts` |
 | Channel throttle | `src/features/message-assistant/cooldown.ts` |
-| Evaluation examples | `tests/fixtures/animex-links.ts` |
 | Discord reply + cooldown wiring | `src/events/messageCreate/animexlinks.ts` |
+| Examples and tests | `tests/fixtures/animex-links.ts`, `tests/features/message-assistant/matcher.test.ts` |
+
+The bot runs the compiled `build/`: changes need `bun run build` and a restart.
 
 ## Matching
 
-`matchAnimeXLinks(text)` returns `{ matched, confidence, section? }`. It first canonicalizes the message once (lowercase, apostrophes removed, 3+ repeated letters collapsed, punctuation to spaces, plurals singularized); every check below reads that one canonical form, so patterns only need singular words.
+`matchAnimeXLinks(text)` returns `{ matched, confidence, section? }`.
 
-1. Every `negativePatterns` entry is tested first. Any match returns `confidence: 0` and no reply, even when the rest of the message looks like a request.
-2. `patterns` decide request intent: one boolean, true if any pattern matched.
-3. `classify()` reports three independent facts: topic word (`keywords` + section words), explicit site name (`names`), and requested section.
+1. **Prepare.** Mentions, emoji, URLs and domains are removed and the text is split into **clauses** at punctuation and at `clauseBreakers` (`but`, `if`, `when`, ...). Each clause is canonicalized: lowercase, apostrophes removed (`i'd` -> `id`), 3+ repeated letters collapsed, plurals in `pluralNouns` folded.
+2. More than `length.maxWords` words, or any `negativePatterns` match, returns 0.
+3. **Frames.** A clause is a request if a `patterns` frame matches it and no `clauseVetoes` pattern does. Only that clause is credited; the one with the most evidence wins.
+4. **Typo pass**, only if step 3 found nothing (see "Typos").
+5. **Score.** Topic and section come from the winning clause, the name bonus from the whole message; length, doubts and repairs are subtracted.
 
-Confidence is an **integer heuristic score out of 100**, not a probability:
+### Scoring
+
+An integer heuristic out of 100, not a probability:
 
 | Evidence | Points |
 | --- | --- |
-| topic word (website, link, url, watch, or a section word) | 40 |
-| request/question shape (any `patterns` match) | 40 |
-| explicit AnimeX name (`animex`, `animx`, `animexx`, `anime x`) | 10 |
-| requested section (homepage/catalog/schedule/community) | 10 |
+| request frame matched | 50 |
+| strong topic word in that clause (AnimeX name, website, site, url, link, homepage, watch/stream, or a section word naming a destination such as "catalog page") | 40 |
+| AnimeX name anywhere in the message | 10 |
+| section word in that clause | 10 |
+| each word beyond `length.freeWords` (20) | -1 |
+| a matching doubt | -30 |
+| each repaired word the matched request relies on | -3 |
 
-`threshold` = 80, i.e. topic **and** intent. The score is the capped sum of matched classes, so it can only take the values 0-100 in 10-point steps and no single signal can pass on its own (topic alone 40, intent alone 40, name alone 10, section alone 10). Because scoring is class-based rather than frequency-based, wording variants that carry the same evidence get the same score: "yo where the animex at" and "yo where that animex at" both score 90.
+A frame plus a topic word is 90, which is what a bare "whats the link" scores; the gap to `threshold` is the room for penalties. No single signal can pass. The threshold has been moved between 80 and 90, so the tests are written against the config.
 
-This replaced the earlier float model (`0.4 * keyword + 0.2 * alias + 0.4 * pattern`, capped at 1). That model reported `80%` for every topic-plus-regex message, which implied a probability it never computed; the alias class was also redundant with name plus topic. The score now states how much evidence matched and nothing about odds.
+### Request frames
 
-## Request versus mention
+A frame is anchored at the start of a clause after an optional lead-in of up to six closed-class words (`hey`, `guys`, `pls`, `can you`, ...). Between the ask and the destination only **function words** may appear (`me`, `the`, `new`, the site name; at most five). Content words break the frame whatever their number, which is what keeps "do i have to keep manually full screen the site" and "blocked where I'd have to use a VPN, just to use animex" from reading as requests. A word window cannot tell them apart.
 
-Intent patterns describe asking: a question word followed by a reference, "can/could/would you" plus a request verb, a request verb followed by a reference, a watch/stream phrasing, a section word plus "page/link/url", a reference next to please, or the bare site name ("animex link").
+- question word + destination: "whats the animex link", "where is the schedule page"
+- `where` + modal + find/get/watch: "where can i watch anime"
+- `how` + modal + get to/access/find destination, or watch/stream anime: "how do i get to animex" (not "how do i use the site")
+- transfer verb + destination: "send me the link", "dm me the link"
+- need/want/looking for + destination: "i need the animex link"
+- asking someone: "anyone have the link", "can i get the url" (not "do i have to ...")
+- site name + noun, noun + please, section + page: "animex link", "link pls", "catalog page" (a bare "animex" is not a request)
+- noun + to/for destination: "link to animex", "link to watch anime"
 
-Negative patterns veto the ways these words appear without a request. Each covers a category, not a phrase:
+### Evidence, doubts and vetoes
 
-- **Ownership or state**: first-person have/got/made/found/like/love/sent/saw/use plus a reference ("I have a website", "I already have the link"), unless the message starts like a question ("can i have the website link").
-- **Possession**: "my/our" before a reference ("where is my website", "my site is down").
-- **Their own work**: "my/our portfolio, project, business, ..." ("i need a link to my portfolio"); "website for my ...".
-- **Building/hosting/outage**: build/design/host verbs near a site word, site words near builder/template/hosting/domain/down/broken/work.
-- **Definition and recommendation**: "what is a website", "best/good/recommend ... site".
-- **Other services**: a platform name (youtube, netflix, crunchyroll, discord, ...) means the link asked for is not ours.
-- **Unrelated senses**: my schedule/calendar, broken/dead link, hating sites.
+- **Section words are not topic words.** `home`, `browse`, `catalog`, `schedule`, `airing` and `community` complete a frame and pick the highlighted link but alone score at most 60; they count as a topic only naming a destination ("catalog page") or next to a strong word. To make one strong, add it to `keywords`.
+- **`clauseVetoes`** disqualify one clause: first-person statements ("ok i got the link", "id use the link"; a question word first keeps "can i have the link") and the site as the object of another action ("give the site a chance", "share animex with your friends").
+- **`doubts`** subtract points: a link for something else ("the link to the zoom call") and talk about the site's behaviour ("i want animex to add dubs").
+- **`negativePatterns`** discard the whole message: possession, their own work, building/hosting/outages, definitions, recommendations and polls, other services, and unrelated senses (my schedule, broken link).
+
+## Message length
+
+`length.maxWords` (30) ignores longer messages; past `freeWords` (20) each word costs `penaltyPerWord` (1), so a longer message needs more evidence. `maxWords` must not exceed `freeWords + (100 - threshold) / penaltyPerWord` (40 at threshold 80); a test enforces it. 30 is a judgment call, not a measurement: requests run about 2-15 words and rarely pass 25. A missed reply costs little; a wrong one spams the channel and starts the cooldown.
+
+## Typos
+
+Runs only when nothing matches as typed, so it can add a match but never change one.
+
+- **A slip of the fingers** (`typo.ts`): a dropped key, a doubled or extra key next to the intended one (`linkk`, `an8ime`), swapped neighbours (`lnik`) or a neighbouring key (`wjat`: j is next to h). `mhat` and `line` are not typos of `what` and `link`.
+- **Only into `typos.targets`**: question words, site nouns, the site name, `watch`, `stream` and a few verbs. Other grammar words (`can`, `the`) are repaired only when two letters are swapped (`cna`, `teh`); `typos.shorthand` covers slang too short to judge (`te`, `wat`).
+- **Real words are never repaired.** `typos.guard` lists those a repair would rewrite (`steam`, `fro`), generated by `scripts/typo-guard.ts` from a dictionary that does not ship; a test fails on stale entries.
+- **The frames settle ambiguous slips**: `wnat` is `want` or `what`, so "hey wnat the link" replies and "wnat to go home" does not.
+- **Run-together words** ("wjatisthesite") are cut into frame words only when that gives three or more with at most one misspelt.
+- **Repairs cost `typos.penalty`** (3, only those the matched request uses); a clause needing more than `typos.maxFixes` (3) is ignored. Vetoes and doubts are checked on the repaired text.
 
 ## Sections and response
 
-`sections` defines homepage/catalog/schedule/community: label, URL and trigger words. Those words are also topic words and are included in the pattern vocabulary, so adding a section makes its words match automatically. When a section is detected it is listed first and bolded in the embed; otherwise all links are listed in config order.
+`sections` defines homepage/catalog/schedule/community: label, URL and trigger words. Adding a section makes its words complete frames and select the highlighted link. The section comes from the request's clause, so "whats the animex link when you get home" does not highlight the homepage. A detected section is listed first and bolded in the embed; otherwise all links are listed in config order.
 
 ## Cooldown
 
@@ -67,15 +93,15 @@ The reply throttle is **per channel**: after a successful reply, that channel ge
 
 ## Footer
 
-The embed footer is generated per reply as `{points}% heuristic confidence | {ms}ms`, e.g. `90% heuristic confidence | 0.12ms`:
+`{confidence}% Confidence | {ms}ms`, e.g. `90% Confidence | 0.12ms`. ms is the wall time of `matchAnimeXLinks()` alone. Unmatched messages send no embed.
 
-- points = the integer `confidence` from the match for this message (0-100 evidence points, as above).
-- ms = wall time of `matchAnimeXLinks()` alone (normalization + scoring), measured with monotonic `performance.now()`, clamped at 0 and formatted with `toFixed(2)`. It is not Discord/network latency and is never estimated.
+## Examples and tests
 
-Unmatched messages send no embed, so no footer is produced. The wording is deliberately "heuristic": no representative labeled corpus has been measured, so no calibration claim is made.
+`tests/fixtures/animex-links.ts` exports `POSITIVE_EXAMPLES` (must reach the threshold), `NEGATIVE_EXAMPLES` and `AMBIGUOUS_EXAMPLES` (both must stay silent); every reported false positive is in the negatives. Run the suite with `bun test tests`. Nothing tests `cooldown.ts` or the Discord handler yet.
 
-## Examples
+## Known limits
 
-`tests/fixtures/animex-links.ts` exports `POSITIVE_EXAMPLES` (must reach 80 points), `NEGATIVE_EXAMPLES` (must stay silent: statements, ownership, building, recommendation, other services, unrelated senses) and `AMBIGUOUS_EXAMPLES` (reviewed judgment calls: references or fragments without a request shape, intentionally silent). They are used by `tests/features/message-assistant/matcher.test.ts`; channel cooldown, isolation, failure and concurrency are covered by `tests/features/message-assistant/cooldown.test.ts` and `tests/events/messageCreate.test.ts`. They are not training data or runtime configuration.
-
-Tests assert decisions (matches, silence, veto to 0) and ordering (named > bare request > statement) rather than one arbitrary score per phrase; a few exact scores are asserted only where they express the threshold model. Adding an example changes no runtime behaviour; adding a trigger requires editing `config.ts`. The same fixtures run under `bun test` and `node --test`.
+- A request that names the link only as "it" ("can someone send it") is not matched, and neither are section-only questions, a bare "animex" or "link?".
+- Frames know only the closed lists in `config.ts`; a content word between ask and destination ("send me the free link") is missed.
+- Vetoes are literal ("hostd" escapes the hosting veto), a slip that is itself a real word (`animex` as `anime`) cannot be repaired, and neither can two slips in one word.
+- The scoring has never been compared with real server traffic.
