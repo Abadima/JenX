@@ -1,10 +1,10 @@
 # JenX - AI Agent Guide
 
-Discord bot: TypeScript (strict, ESM), discord.js v14, filesystem loader for commands and events. Bun installs dependencies and runs tests; the bot runs as compiled JavaScript on Node. Where this file and the code disagree, the code wins.
+Discord bot: TypeScript (strict, ESM), discord.js v14, filesystem loader for commands and events. Bun installs dependencies and runs tests; the bot runs as compiled JavaScript on Bun. Where this file and the code disagree, the code wins.
 
 ## The bot runs `build/`, not `src/`
 
-`bun start` is `node .` -> `build/bot.js` and does not build; the loader scans the compiled `build/commands` and `build/events`. After any change under `src/`, run `bun run build` and restart the bot.
+`bun start` runs `build/bot.js` and does not build; the loader scans the compiled `build/commands` and `build/events`. After any change under `src/`, run `bun run build` and restart the bot.
 
 ## Entry points
 
@@ -35,9 +35,9 @@ Discord bot: TypeScript (strict, ESM), discord.js v14, filesystem loader for com
 
 ```bash
 bun install
-bun run build         # node build.js: delete build/, tsc, then oxlint --fix
+bun run build         # bun build.js: delete build/, tsc, then oxlint --fix
 bun run build:watch   # tsc --watch + oxlint --fix
-bun start             # node . (does not build)
+bun start             # bun . (does not build)
 bun test tests        # the test suite
 ```
 
